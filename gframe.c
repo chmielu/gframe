@@ -25,8 +25,6 @@
 
 #include <gtk/gtk.h>
 
-#define DEBUG
-
 #ifdef DEBUG
 # define f_print(frm, ...) g_print(frm "\n", __VA_ARGS__)
 #else
