@@ -25,6 +25,8 @@
 
 #include <gtk/gtk.h>
 
+#define DEBUG
+
 #ifdef DEBUG
 # define f_print(frm, ...) g_print(frm "\n", __VA_ARGS__)
 #else
@@ -37,6 +39,7 @@ static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
+static GtkWidget *f_get_main_window	(void);
 static gboolean	f_set_config		(gchar *path, gchar *content);
 
 int main(int argc, char **argv) {
@@ -52,7 +55,7 @@ int main(int argc, char **argv) {
 
 	event = gtk_event_box_new();
 	image = gtk_image_new_from_file(path);
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	window = f_get_main_window();
 
 	g_free(path);
 
@@ -75,12 +78,6 @@ int main(int argc, char **argv) {
 	gtk_widget_show(menuitem);
 
 	gtk_container_add(GTK_CONTAINER(event), image);
-
-	gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
-	gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
-	gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
-	gtk_window_set_keep_below(GTK_WINDOW(window), TRUE);
-	gtk_window_stick(GTK_WINDOW(window));
 
 	gtk_container_set_border_width(GTK_CONTAINER(window), 5);
 	gtk_container_add(GTK_CONTAINER(window), event);
@@ -116,13 +113,13 @@ static gint callback_button(GtkWidget *widget, GdkEvent *event) {
 }
 
 static gint callback_preferences(GtkWidget *widget, GtkWidget *image) {
+	GtkWidget *window = f_get_main_window();
 	gchar *filename = f_get_photo_path_from_dialog();
 	gchar *path;
 
 	if (!filename)
 		return FALSE;
 
-	gtk_image_clear(GTK_IMAGE(image));
 	gtk_image_set_from_file(GTK_IMAGE(image), filename);
 
 	f_print("File: %s", filename);
@@ -130,6 +127,12 @@ static gint callback_preferences(GtkWidget *widget, GtkWidget *image) {
 	path = f_get_config_path();
 	f_set_config(path, filename);
 
+	if (window) {
+		gint width, height;
+
+		gdk_pixbuf_get_file_info(filename, &width, &height);
+		gtk_window_resize(GTK_WINDOW(window), width, height);
+	}
 	return TRUE;
 }
 
@@ -197,4 +200,19 @@ static gchar *f_get_config_path(void) {
 		path = g_build_filename(g_get_user_config_dir(),
 			"frame.conf", NULL);
 	return path;
+}
+
+static GtkWidget *f_get_main_window(void) {
+	static GtkWidget *widget = NULL;
+
+	if (widget == NULL)  {
+		widget = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+		gtk_window_set_decorated(GTK_WINDOW(widget), FALSE);
+		gtk_window_set_skip_pager_hint(GTK_WINDOW(widget), TRUE);
+		gtk_window_set_skip_taskbar_hint(GTK_WINDOW(widget), TRUE);
+		gtk_window_set_keep_below(GTK_WINDOW(widget), TRUE);
+		gtk_window_stick(GTK_WINDOW(widget));
+	}
+	return widget;
 }
