@@ -38,7 +38,8 @@ static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
 static GtkWidget *f_get_main_window	(void);
-static gboolean	f_set_config		(gchar *path, gchar *content);
+static gboolean	f_set_config		(gchar *path, gchar *group, gchar *key,
+						gchar *content);
 
 int main(int argc, char **argv) {
 	GtkWidget *window, *image, *event, *menu, *menuitem;
@@ -54,8 +55,6 @@ int main(int argc, char **argv) {
 	event = gtk_event_box_new();
 	image = gtk_image_new_from_file(path);
 	window = f_get_main_window();
-
-	g_free(path);
 
 	menu = gtk_menu_new();
 
@@ -123,13 +122,14 @@ static gint callback_preferences(GtkWidget *widget, GtkWidget *image) {
 	f_print("File: %s", filename);
 
 	path = f_get_config_path();
-	f_set_config(path, filename);
+	f_set_config(path, "preferences", "photo_path", filename);
 
 	if (window) {
 		gint width, height;
 
 		gdk_pixbuf_get_file_info(filename, &width, &height);
-		gtk_window_resize(GTK_WINDOW(window), width, height);
+		if (width > 0 && height > 0)
+			gtk_window_resize(GTK_WINDOW(window), width, height);
 	}
 	return TRUE;
 }
@@ -155,40 +155,51 @@ static gchar *f_get_photo_path_from_dialog(void) {
 }
 
 static gchar *f_get_photo_path(void) {
+	GKeyFile *keyfile = g_key_file_new();
 	gchar *config_path = f_get_config_path();
-	gchar *config, *filename = NULL;
+	gchar *photo_path = NULL;
 
 	f_print("Config path: %s", config_path);
 
 	if (g_file_test(config_path, G_FILE_TEST_EXISTS)) {
-		if (!g_file_get_contents(config_path, &config, NULL, NULL)) {
+		if (!g_key_file_load_from_file(keyfile, config_path,
+			G_KEY_FILE_NONE, NULL))
 			f_print("Error: cannot read from file: %s",
 				config_path);
-		} else {
-			f_print("Config: %s", config);
-
-			if (g_path_is_absolute(config)) {
-				filename = g_strdup(config);
-				g_free(config);
-			}
-		}
+		else
+			photo_path = g_key_file_get_string(keyfile,
+				"preferences", "photo_path", NULL);
 	} else {
-		config = f_get_photo_path_from_dialog();
-		if (!config)
+		photo_path = f_get_photo_path_from_dialog();
+		if (!photo_path) {
+			g_key_file_free(keyfile);
 			return NULL;
-
-		filename = g_strdup(config);
-		f_set_config(config_path, filename);
+		}
+		f_set_config(config_path, "preferences",
+			"photo_path", photo_path);
 	}
-	return filename;
+	g_key_file_free(keyfile);
+	return photo_path;
 }
 
-static gboolean f_set_config(gchar *path, gchar *content) {
-	if (!g_file_set_contents(path, content, -1, NULL)) {
-		f_print("Error: cannot write to file: %s.", path);
-		return FALSE;
-	}
-	return TRUE;
+static gboolean f_set_config(gchar *path, gchar *group,
+	gchar *key, gchar *content) {
+		GKeyFile *keyfile = g_key_file_new();
+		FILE *fd;
+		gint ret = FALSE;
+
+		g_key_file_load_from_file(keyfile, path, G_KEY_FILE_NONE, NULL);
+		g_key_file_set_string(keyfile, group, key, content);
+
+		if ((fd = fopen(path, "w")) != NULL) {
+			fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
+			fclose(fd);
+			ret = TRUE;
+		} else {
+			f_print("Error: cannot write to file: %s.", path);
+		}
+		g_key_file_free(keyfile);
+		return ret;
 }
 
 static gchar *f_get_config_path(void) {
