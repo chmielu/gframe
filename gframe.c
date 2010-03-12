@@ -32,7 +32,7 @@
 #endif /* DEBUG */
 
 static void 	callback_destroy	(GtkWidget *widget, gpointer data);
-static gint	callback_preferences	(GtkWidget *widget, GtkWidget *image);
+static gint	callback_open	(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static void 	callback_move		(GtkWidget *widget,
 						GdkEventConfigure *event);
@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 	/* change image button */
 	menuitem = gtk_image_menu_item_new_from_stock(GTK_STOCK_OPEN, NULL);
 	g_signal_connect(menuitem, "activate",
-		G_CALLBACK(callback_preferences), image);
+		G_CALLBACK(callback_open), image);
 
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
 	gtk_widget_show(menuitem);
@@ -119,7 +119,7 @@ static gint callback_button(GtkWidget *widget, GdkEvent *event) {
 	return FALSE;
 }
 
-static gint callback_preferences(GtkWidget *widget, GtkWidget *image) {
+static gint callback_open(GtkWidget *widget, GtkWidget *image) {
 	GtkWidget *window = f_get_main_window();
 	gchar *filename = f_get_photo_path_from_dialog();
 	gchar *path;
