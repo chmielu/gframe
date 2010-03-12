@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 	menu = gtk_menu_new();
 
 	/* change image button */
-	menuitem = gtk_image_menu_item_new_from_stock(GTK_STOCK_PREFERENCES, NULL);
+	menuitem = gtk_image_menu_item_new_from_stock(GTK_STOCK_OPEN, NULL);
 	g_signal_connect(menuitem, "activate",
 		G_CALLBACK(callback_preferences), image);
 
