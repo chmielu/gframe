@@ -219,18 +219,19 @@ static gchar *f_get_config_path(void) {
 }
 
 static GtkWidget *f_get_main_window(void) {
-	static GtkWidget *widget = NULL;
+	static GtkWindow *window = NULL;
 
-	if (widget == NULL)  {
-		widget = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	if (window == NULL)  {
+		window = GTK_WINDOW(gtk_window_new(GTK_WINDOW_TOPLEVEL));
 
-		gtk_window_set_decorated(GTK_WINDOW(widget), FALSE);
-		gtk_window_set_skip_pager_hint(GTK_WINDOW(widget), TRUE);
-		gtk_window_set_skip_taskbar_hint(GTK_WINDOW(widget), TRUE);
-		gtk_window_set_keep_below(GTK_WINDOW(widget), TRUE);
-		gtk_window_stick(GTK_WINDOW(widget));
+		gtk_window_set_decorated(window, FALSE);
+		gtk_window_set_skip_pager_hint(window, TRUE);
+		gtk_window_set_skip_taskbar_hint(window, TRUE);
+		gtk_window_set_keep_below(window, TRUE);
+		gtk_window_stick(window);
+		gtk_window_set_title(window, "gframe");
 	}
-	return widget;
+	return GTK_WIDGET(window);
 }
 
 static gboolean f_set_config(gchar *path, gchar *group,
