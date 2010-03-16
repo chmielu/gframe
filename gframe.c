@@ -31,6 +31,14 @@
 # define f_print(frm, ...)
 #endif /* DEBUG */
 
+#define f_menu_append_from_stock(stock,callback,arg) do { \
+		menuitem = gtk_image_menu_item_new_from_stock(stock, NULL); \
+		g_signal_connect(menuitem, "activate", \
+			G_CALLBACK(callback), arg); \
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem); \
+		gtk_widget_show(menuitem); \
+	} while (0);
+
 static void 	callback_destroy	(GtkWidget *widget, gpointer data);
 static gint	callback_open	(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
@@ -63,21 +71,8 @@ int main(int argc, char **argv) {
 
 	menu = gtk_menu_new();
 
-	/* change image button */
-	menuitem = gtk_image_menu_item_new_from_stock(GTK_STOCK_OPEN, NULL);
-	g_signal_connect(menuitem, "activate",
-		G_CALLBACK(callback_open), image);
-
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	gtk_widget_show(menuitem);
-
-	/* quit button */
-	menuitem = gtk_image_menu_item_new_from_stock(GTK_STOCK_QUIT, NULL);
-	g_signal_connect(menuitem, "activate",
-		G_CALLBACK(callback_destroy), NULL);
-
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	gtk_widget_show(menuitem);
+	f_menu_append_from_stock(GTK_STOCK_OPEN, callback_open, image);
+	f_menu_append_from_stock(GTK_STOCK_QUIT, callback_destroy, NULL);
 
 	gtk_container_add(GTK_CONTAINER(event), image);
 
