@@ -40,7 +40,7 @@
 	} while (0);
 
 static void 	callback_destroy	(GtkWidget *widget, gpointer data);
-static gint	callback_open	(GtkWidget *widget, GtkWidget *image);
+static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static void 	callback_move		(GtkWidget *widget,
 						GdkEventConfigure *event);
@@ -55,37 +55,29 @@ static void	f_set_position		(void);
 static guint wx, wy;
 
 int main(int argc, char **argv) {
-	GtkWidget *window, *image, *event, *menu, *menuitem;
-	gchar *path = NULL;
+	GtkWidget *menuitem; /* used by f_menuf_menu_append_from_stock() */
+	gchar *path = f_get_photo_path();
+
+	g_return_val_if_fail((path != NULL), 1);
 
 	gtk_init(&argc, &argv);
 
-	path = f_get_photo_path();
-	g_return_val_if_fail((path != NULL), 1);
-
-	f_print("File: %s", path);
-
-	event = gtk_event_box_new();
-	image = gtk_image_new_from_file(path);
-	window = f_get_main_window();
-
-	menu = gtk_menu_new();
+	GtkWidget *event = gtk_event_box_new();
+	GtkWidget *image = gtk_image_new_from_file(path);
+	GtkWidget *window = f_get_main_window();
+	GtkWidget *menu = gtk_menu_new();
 
 	f_menu_append_from_stock(GTK_STOCK_OPEN, callback_open, image);
 	f_menu_append_from_stock(GTK_STOCK_QUIT, callback_destroy, NULL);
 
 	gtk_container_add(GTK_CONTAINER(event), image);
-
-	gtk_container_set_border_width(GTK_CONTAINER(window), 5);
 	gtk_container_add(GTK_CONTAINER(window), event);
+	gtk_container_set_border_width(GTK_CONTAINER(window), 5);
 
 	g_signal_connect_swapped(window, "button_press_event",
 		G_CALLBACK(callback_button), menu);
-
-	g_signal_connect(G_OBJECT(window), "destroy",
-		G_CALLBACK(callback_destroy), NULL);
-
-	g_signal_connect(G_OBJECT(window), "configure-event",
+	g_signal_connect(window, "destroy", G_CALLBACK(callback_destroy), NULL);
+	g_signal_connect(window, "configure-event",
 		G_CALLBACK(callback_move), NULL);
 
 	f_set_position();
