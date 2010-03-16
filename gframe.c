@@ -55,7 +55,7 @@ static void	f_set_position		(void);
 static guint wx, wy;
 
 int main(int argc, char **argv) {
-	GtkWidget *menuitem; /* used by f_menuf_menu_append_from_stock() */
+	GtkWidget *menuitem; /* used by f_menu_append_from_stock() */
 	gchar *path = f_get_photo_path();
 
 	g_return_val_if_fail((path != NULL), 1);
@@ -141,11 +141,7 @@ static void callback_destroy(GtkWidget *widget, gpointer data) {
 	gchar *config_path = f_get_config_path();
 	FILE *fd;
 
-	if (!g_key_file_load_from_file(keyfile, config_path,
-		G_KEY_FILE_NONE, NULL)) {
-		f_print("Error: cannot read from file: %s",
-			config_path);
-	}
+	g_key_file_load_from_file(keyfile, config_path, G_KEY_FILE_NONE, NULL);
 	g_key_file_set_integer(keyfile, "preferences", "x", wx);
 	g_key_file_set_integer(keyfile, "preferences", "y", wy);
 
@@ -239,9 +235,8 @@ static gboolean f_set_config(gchar *path, gchar *group,
 			fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
 			fclose(fd);
 			ret = TRUE;
-		} else {
+		} else
 			f_print("Error: cannot write to file: %s.", path);
-		}
 		g_key_file_free(keyfile);
 		return ret;
 }
