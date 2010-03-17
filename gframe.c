@@ -47,14 +47,16 @@ static void 	callback_move		(GtkWidget *widget,
 static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
+static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path, gint size);
 static GtkWidget *f_get_main_window	(void);
 static gboolean	f_set_config		(gchar *path, gchar *group, gchar *key,
 						gchar *content);
-static void	f_set_position		(void);
+static void	f_set_position		(gboolean same);
 
-static guint wx, wy;
+static gint wx, wy;
 
-int main(int argc, char **argv) {
+int
+main(int argc, char **argv) {
 	GtkWidget *menuitem; /* used by f_menu_append_from_stock() */
 	gchar *path = f_get_photo_path();
 
@@ -63,16 +65,19 @@ int main(int argc, char **argv) {
 	gtk_init(&argc, &argv);
 
 	GtkWidget *event = gtk_event_box_new();
-	GtkWidget *image = gtk_image_new_from_file(path);
+	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(path, 300);
+	GtkWidget *image = gtk_image_new_from_pixbuf(pixbuf);
 	GtkWidget *window = f_get_main_window();
 	GtkWidget *menu = gtk_menu_new();
+
+	g_object_unref(pixbuf);
 
 	f_menu_append_from_stock(GTK_STOCK_OPEN, callback_open, image);
 	f_menu_append_from_stock(GTK_STOCK_QUIT, callback_destroy, NULL);
 
+	gtk_container_set_border_width(GTK_CONTAINER(window), 5);
 	gtk_container_add(GTK_CONTAINER(event), image);
 	gtk_container_add(GTK_CONTAINER(window), event);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 5);
 
 	g_signal_connect_swapped(window, "button_press_event",
 		G_CALLBACK(callback_button), menu);
@@ -80,7 +85,7 @@ int main(int argc, char **argv) {
 	g_signal_connect(window, "configure-event",
 		G_CALLBACK(callback_move), NULL);
 
-	f_set_position();
+	f_set_position(FALSE);
 
 	gtk_widget_show_all(window);
 	gtk_main();
@@ -88,7 +93,8 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-static gint callback_button(GtkWidget *widget, GdkEvent *event) {
+static gint
+callback_button(GtkWidget *widget, GdkEvent *event) {
 	GtkMenu *menu;
 	GdkEventButton *button;
 
@@ -106,37 +112,42 @@ static gint callback_button(GtkWidget *widget, GdkEvent *event) {
 	return FALSE;
 }
 
-static gint callback_open(GtkWidget *widget, GtkWidget *image) {
+static gint
+callback_open(GtkWidget *widget, GtkWidget *image) {
 	GtkWidget *window = f_get_main_window();
 	gchar *filename = f_get_photo_path_from_dialog();
-	gchar *path;
+	gchar *path = f_get_config_path();
 
 	if (!filename)
 		return FALSE;
 
-	gtk_image_set_from_file(GTK_IMAGE(image), filename);
+	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(filename, 300);
 
 	f_print("File: %s", filename);
-
-	path = f_get_config_path();
 	f_set_config(path, "preferences", "photo_path", filename);
 
-	if (window) {
-		gint width, height;
+	gtk_image_set_from_pixbuf(GTK_IMAGE(image), pixbuf);
+	g_object_unref(pixbuf);
 
-		gdk_pixbuf_get_file_info(filename, &width, &height);
-		if (width > 0 && height > 0)
-			gtk_window_resize(GTK_WINDOW(window), width, height);
+	if (window) {
+		gtk_widget_hide_all(window);
+		gtk_window_resize(GTK_WINDOW(window),
+			gdk_pixbuf_get_width(pixbuf),
+			gdk_pixbuf_get_height(pixbuf));
+		gtk_widget_show_all(window);
 	}
+	f_set_position(TRUE);
 	return TRUE;
 }
 
-static void callback_move(GtkWidget *widget, GdkEventConfigure *event) {
+static void
+callback_move(GtkWidget *widget, GdkEventConfigure *event) {
 	wx = event->x;
 	wy = event->y;
 }
 
-static void callback_destroy(GtkWidget *widget, gpointer data) {
+static void
+callback_destroy(GtkWidget *widget, gpointer data) {
 	GKeyFile *keyfile = g_key_file_new();
 	gchar *config_path = f_get_config_path();
 	FILE *fd;
@@ -153,11 +164,11 @@ static void callback_destroy(GtkWidget *widget, gpointer data) {
 	gtk_main_quit();
 }
 
-static gchar *f_get_photo_path_from_dialog(void) {
+static gchar *
+f_get_photo_path_from_dialog(void) {
 	gchar *filename = NULL;
 
-	GtkWidget *dialog = gtk_file_chooser_dialog_new("Choose File",
-		NULL,
+	GtkWidget *dialog = gtk_file_chooser_dialog_new("Choose File", NULL,
 		GTK_FILE_CHOOSER_ACTION_OPEN,
 		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 		GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
@@ -169,7 +180,29 @@ static gchar *f_get_photo_path_from_dialog(void) {
 	return filename;
 }
 
-static gchar *f_get_photo_path(void) {
+static GdkPixbuf *
+f_get_pixbuf_at_scale(gchar *path, gint scale) {
+	GdkPixbuf *pixbuf;
+	gint width, height;
+
+	gdk_pixbuf_get_file_info(path, &width, &height);
+
+	if (width > 300 || height > 300) {
+		if ((width - height) >= 0)
+			pixbuf = gdk_pixbuf_new_from_file_at_scale(path,
+				scale, -1, TRUE, NULL);
+		else if ((width - height) < 0)
+			pixbuf = gdk_pixbuf_new_from_file_at_scale(path,
+				-1, scale, TRUE, NULL);
+	} else if (width > 0 && height > 0)
+		pixbuf = gdk_pixbuf_new_from_file(path, NULL);
+	else
+		return NULL;
+	return pixbuf;
+}
+
+static gchar *
+f_get_photo_path(void) {
 	GKeyFile *keyfile = g_key_file_new();
 	gchar *config_path = f_get_config_path();
 	gchar *photo_path = NULL;
@@ -197,7 +230,8 @@ static gchar *f_get_photo_path(void) {
 	return photo_path;
 }
 
-static gchar *f_get_config_path(void) {
+static gchar *
+f_get_config_path(void) {
 	static gchar *path = NULL;
 
 	if (path == NULL)
@@ -206,7 +240,8 @@ static gchar *f_get_config_path(void) {
 	return path;
 }
 
-static GtkWidget *f_get_main_window(void) {
+static GtkWidget *
+f_get_main_window(void) {
 	static GtkWindow *window = NULL;
 
 	if (window == NULL)  {
@@ -222,36 +257,43 @@ static GtkWidget *f_get_main_window(void) {
 	return GTK_WIDGET(window);
 }
 
-static gboolean f_set_config(gchar *path, gchar *group,
-	gchar *key, gchar *content) {
-		GKeyFile *keyfile = g_key_file_new();
-		FILE *fd;
-		gint ret = FALSE;
+static gboolean
+f_set_config(gchar *path, gchar *group, gchar *key, gchar *content) {
+	GKeyFile *keyfile = g_key_file_new();
+	FILE *fd;
+	gint ret = FALSE;
 
-		g_key_file_load_from_file(keyfile, path, G_KEY_FILE_NONE, NULL);
-		g_key_file_set_string(keyfile, group, key, content);
+	g_key_file_load_from_file(keyfile, path, G_KEY_FILE_NONE, NULL);
+	g_key_file_set_string(keyfile, group, key, content);
 
-		if ((fd = fopen(path, "w")) != NULL) {
-			fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
-			fclose(fd);
-			ret = TRUE;
-		} else
-			f_print("Error: cannot write to file: %s.", path);
-		g_key_file_free(keyfile);
-		return ret;
+	if ((fd = fopen(path, "w")) != NULL) {
+		fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
+		fclose(fd);
+		ret = TRUE;
+	} else
+		f_print("Error: cannot write to file: %s.", path);
+	g_key_file_free(keyfile);
+	return ret;
 }
 
-static void f_set_position(void) {
+static void
+f_set_position(gboolean same) {
+	GtkWindow *window = GTK_WINDOW(f_get_main_window());
 	GKeyFile *keyfile = g_key_file_new();
 	gchar *config_path = f_get_config_path();
 
-	if (!g_key_file_load_from_file(keyfile, config_path,
-		G_KEY_FILE_NONE, NULL))
-		f_print("Error: cannot read from file: %s",
-			config_path);
-	else {
-		wx = g_key_file_get_integer(keyfile, "preferences", "x", NULL);
-		wy = g_key_file_get_integer(keyfile, "preferences", "y", NULL);
-		gtk_window_move(GTK_WINDOW(f_get_main_window()), wx, wy);
+	if (!same) {
+		if (!g_key_file_load_from_file(keyfile, config_path,
+			G_KEY_FILE_NONE, NULL)) {
+			f_print("Error: cannot read from file: %s", config_path);
+		} else {
+			wx = g_key_file_get_integer(keyfile,
+				"preferences", "x", NULL);
+			wy = g_key_file_get_integer(keyfile,
+				"preferences", "y", NULL);
+		}
+	} else {
+		gtk_window_get_position(window, &wx, &wy);
 	}
+	gtk_window_move(window, wx, wy);
 }
