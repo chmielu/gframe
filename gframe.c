@@ -31,15 +31,24 @@
 # define f_print(frm, ...)
 #endif /* DEBUG */
 
+#define F_UNUSED(x) (void)x
+
 #define f_menu_append_from_stock(stock,callback,arg) do { \
 		menuitem = gtk_image_menu_item_new_from_stock(stock, NULL); \
 		g_signal_connect(menuitem, "activate", \
 			G_CALLBACK(callback), arg); \
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem); \
 		gtk_widget_show(menuitem); \
-	} while (0);
+	} while (0)
 
-static void 	callback_destroy	(GtkWidget *widget, gpointer data);
+/* this is so stupid, but without setting
+ * hints to FALSE it way doesn't work :-( */
+#define f_window_set_skip_hint(what,widget) do { \
+		gtk_window_set_skip_##what##_hint(GTK_WINDOW(widget), FALSE); \
+		gtk_window_set_skip_##what##_hint(GTK_WINDOW(widget), TRUE); \
+	} while (0)
+
+static void 	callback_destroy	(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static void 	callback_move		(GtkWidget *widget,
@@ -49,6 +58,7 @@ static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
 static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path, gint size);
 static GtkWidget *f_get_main_window	(void);
+static void	f_set_window_hints	(GtkWindow *window, gboolean new);
 static gboolean	f_set_config		(gchar *path, gchar *group, gchar *key,
 						gchar *content);
 static void	f_set_position		(gboolean same);
@@ -118,6 +128,8 @@ callback_open(GtkWidget *widget, GtkWidget *image) {
 	gchar *filename = f_get_photo_path_from_dialog();
 	gchar *path = f_get_config_path();
 
+	F_UNUSED(widget);
+
 	if (!filename)
 		return FALSE;
 
@@ -135,6 +147,7 @@ callback_open(GtkWidget *widget, GtkWidget *image) {
 			gdk_pixbuf_get_width(pixbuf),
 			gdk_pixbuf_get_height(pixbuf));
 		gtk_widget_show_all(window);
+		f_set_window_hints(GTK_WINDOW(window), FALSE);
 	}
 	f_set_position(TRUE);
 	return TRUE;
@@ -142,15 +155,18 @@ callback_open(GtkWidget *widget, GtkWidget *image) {
 
 static void
 callback_move(GtkWidget *widget, GdkEventConfigure *event) {
+	F_UNUSED(widget);
 	wx = event->x;
 	wy = event->y;
 }
 
 static void
-callback_destroy(GtkWidget *widget, gpointer data) {
+callback_destroy(GtkWidget *widget) {
 	GKeyFile *keyfile = g_key_file_new();
 	gchar *config_path = f_get_config_path();
 	FILE *fd;
+
+	F_UNUSED(widget);
 
 	g_key_file_load_from_file(keyfile, config_path, G_KEY_FILE_NONE, NULL);
 	g_key_file_set_integer(keyfile, "preferences", "x", wx);
@@ -242,19 +258,25 @@ f_get_config_path(void) {
 
 static GtkWidget *
 f_get_main_window(void) {
-	static GtkWindow *window = NULL;
+	static GtkWidget *window = NULL;
 
 	if (window == NULL)  {
-		window = GTK_WINDOW(gtk_window_new(GTK_WINDOW_TOPLEVEL));
+		window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+		f_set_window_hints(GTK_WINDOW(window), TRUE);
+	}
+	return window;
+}
 
+static void
+f_set_window_hints(GtkWindow *window, gboolean new) {
+	if (new) {
 		gtk_window_set_decorated(window, FALSE);
-		gtk_window_set_skip_pager_hint(window, TRUE);
-		gtk_window_set_skip_taskbar_hint(window, TRUE);
-		gtk_window_set_keep_below(window, TRUE);
-		gtk_window_stick(window);
 		gtk_window_set_title(window, "gframe");
 	}
-	return GTK_WIDGET(window);
+	f_window_set_skip_hint(pager, window);
+	f_window_set_skip_hint(taskbar, window);
+	gtk_window_stick(window);
+	gtk_window_set_keep_below(window, TRUE);
 }
 
 static gboolean
@@ -270,8 +292,9 @@ f_set_config(gchar *path, gchar *group, gchar *key, gchar *content) {
 		fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
 		fclose(fd);
 		ret = TRUE;
-	} else
+	} else {
 		f_print("Error: cannot write to file: %s.", path);
+	}
 	g_key_file_free(keyfile);
 	return ret;
 }
@@ -292,8 +315,7 @@ f_set_position(gboolean same) {
 			wy = g_key_file_get_integer(keyfile,
 				"preferences", "y", NULL);
 		}
-	} else {
+	} else
 		gtk_window_get_position(window, &wx, &wy);
-	}
 	gtk_window_move(window, wx, wy);
 }
