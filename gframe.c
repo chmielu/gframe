@@ -48,7 +48,7 @@
 		gtk_window_set_skip_##what##_hint(GTK_WINDOW(widget), TRUE); \
 	} while (0)
 
-static void 	callback_destroy	(GtkWidget *widget);
+static void	callback_destroy	(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static void 	callback_move		(GtkWidget *widget,
@@ -68,11 +68,11 @@ static gint wx, wy;
 int
 main(int argc, char **argv) {
 	GtkWidget *menuitem; /* used by f_menu_append_from_stock() */
-	gchar *path = f_get_photo_path();
-
-	g_return_val_if_fail((path != NULL), 1);
+	gchar *path;
 
 	gtk_init(&argc, &argv);
+
+	g_return_val_if_fail((path = f_get_photo_path()) != NULL, 1);
 
 	GtkWidget *event = gtk_event_box_new();
 	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(path, 300);
