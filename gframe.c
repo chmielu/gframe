@@ -33,10 +33,9 @@
 
 #define F_UNUSED(x) (void)x
 
-#define f_menu_append_from_stock(stock,callback,arg) do { \
+#define f_menu_append_from_stock(stock,cb,arg) do { \
 		menuitem = gtk_image_menu_item_new_from_stock(stock, NULL); \
-		g_signal_connect(menuitem, "activate", \
-			G_CALLBACK(callback), arg); \
+		g_signal_connect(menuitem, "activate", G_CALLBACK(cb), arg); \
 		gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem); \
 		gtk_widget_show(menuitem); \
 	} while (0)
@@ -51,16 +50,16 @@
 static void	callback_destroy	(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
-static void 	callback_move		(GtkWidget *widget,
-						GdkEventConfigure *event);
+static gint	callback_pref		(GtkWidget *widget, GtkWidget *window);
+static void 	callback_move		(GtkWidget *widget, GdkEventConfigure *event);
+static gchar *	f_get_config		(gchar *group, gchar *key);
 static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
-static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path, gint size);
+static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path);
 static GtkWidget *f_get_main_window	(void);
 static void	f_set_window_hints	(GtkWindow *window, gboolean new);
-static gboolean	f_set_config		(gchar *path, gchar *group, gchar *key,
-						gchar *content);
+static gboolean	f_set_config		(gchar *group, gchar *key, gchar *content);
 static void	f_set_position		(gboolean same);
 
 static gint wx, wy;
@@ -75,13 +74,14 @@ main(int argc, char **argv) {
 	g_return_val_if_fail((path = f_get_photo_path()) != NULL, 1);
 
 	GtkWidget *event = gtk_event_box_new();
-	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(path, 300);
+	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(path);
 	GtkWidget *image = gtk_image_new_from_pixbuf(pixbuf);
 	GtkWidget *window = f_get_main_window();
 	GtkWidget *menu = gtk_menu_new();
 
 	g_object_unref(pixbuf);
 
+	f_menu_append_from_stock(GTK_STOCK_PREFERENCES, callback_pref, window);
 	f_menu_append_from_stock(GTK_STOCK_OPEN, callback_open, image);
 	f_menu_append_from_stock(GTK_STOCK_QUIT, callback_destroy, NULL);
 
@@ -89,11 +89,9 @@ main(int argc, char **argv) {
 	gtk_container_add(GTK_CONTAINER(event), image);
 	gtk_container_add(GTK_CONTAINER(window), event);
 
-	g_signal_connect_swapped(window, "button_press_event",
-		G_CALLBACK(callback_button), menu);
+	g_signal_connect_swapped(window, "button_press_event", G_CALLBACK(callback_button), menu);
 	g_signal_connect(window, "destroy", G_CALLBACK(callback_destroy), NULL);
-	g_signal_connect(window, "configure-event",
-		G_CALLBACK(callback_move), NULL);
+	g_signal_connect(window, "configure-event", G_CALLBACK(callback_move), NULL);
 
 	f_set_position(FALSE);
 
@@ -126,17 +124,13 @@ static gint
 callback_open(GtkWidget *widget, GtkWidget *image) {
 	GtkWidget *window = f_get_main_window();
 	gchar *filename = f_get_photo_path_from_dialog();
-	gchar *path = f_get_config_path();
 
 	F_UNUSED(widget);
+	g_return_val_if_fail (filename, FALSE);
 
-	if (!filename)
-		return FALSE;
-
-	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(filename, 300);
-
+	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale(filename);
 	f_print("File: %s", filename);
-	f_set_config(path, "preferences", "photo_path", filename);
+	f_set_config("preferences", "photo_path", filename);
 
 	gtk_image_set_from_pixbuf(GTK_IMAGE(image), pixbuf);
 	g_object_unref(pixbuf);
@@ -153,6 +147,55 @@ callback_open(GtkWidget *widget, GtkWidget *image) {
 	return TRUE;
 }
 
+static gint
+callback_pref(GtkWidget *widget, GtkWidget *window) {
+	GtkWidget *dialog, *content_area, *label, *spin_button, *hbox;
+	gint max_size = 0;
+	gchar *tmp = NULL;
+	F_UNUSED (widget);
+
+	dialog = gtk_dialog_new_with_buttons ("Settings",
+		GTK_WINDOW (window),
+		GTK_DIALOG_DESTROY_WITH_PARENT,
+		GTK_STOCK_OK, GTK_RESPONSE_OK,
+		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+		NULL);
+
+	content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
+	hbox = gtk_hbox_new (TRUE, 0);
+	label = gtk_label_new ("Maximum size:");
+	spin_button = gtk_spin_button_new_with_range (0, 1000, 1);
+
+	tmp = f_get_config ("preferences", "max_size");
+	if (tmp != NULL) {
+		max_size = g_strtod (tmp, NULL);
+		g_free (tmp);
+	}
+	gtk_spin_button_set_value (GTK_SPIN_BUTTON (spin_button), max_size);
+	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
+
+	gtk_container_add (GTK_CONTAINER (hbox), label);
+	gtk_container_add (GTK_CONTAINER (hbox), spin_button);
+	gtk_widget_show_all (hbox);
+	gtk_container_add (GTK_CONTAINER (content_area), hbox);
+
+	gint result = gtk_dialog_run (GTK_DIALOG (dialog));
+	switch (result) {
+		case GTK_RESPONSE_OK:
+			max_size = gtk_spin_button_get_value_as_int (
+				GTK_SPIN_BUTTON (spin_button));
+			/* TODO: f_set_config_int () */
+			tmp = g_strdup_printf ("%d", max_size);
+			f_set_config ("preferences", "max_size", tmp);
+			g_free (tmp);
+			break;
+		default:
+			break;
+	}
+	gtk_widget_destroy (dialog);
+	return TRUE;
+}
+
 static void
 callback_move(GtkWidget *widget, GdkEventConfigure *event) {
 	F_UNUSED(widget);
@@ -162,21 +205,18 @@ callback_move(GtkWidget *widget, GdkEventConfigure *event) {
 
 static void
 callback_destroy(GtkWidget *widget) {
-	GKeyFile *keyfile = g_key_file_new();
-	gchar *config_path = f_get_config_path();
-	FILE *fd;
-
 	F_UNUSED(widget);
 
-	g_key_file_load_from_file(keyfile, config_path, G_KEY_FILE_NONE, NULL);
-	g_key_file_set_integer(keyfile, "preferences", "x", wx);
-	g_key_file_set_integer(keyfile, "preferences", "y", wy);
+	/* TODO: f_set_config_int () */
+	gchar *sx = g_strdup_printf ("%d", wx);
+	gchar *sy = g_strdup_printf ("%d", wy);
 
-	if ((fd = fopen(config_path, "w")) != NULL) {
-		fputs(g_key_file_to_data(keyfile, NULL, NULL), fd);
-		fclose(fd);
-	}
-	g_key_file_free(keyfile);
+	f_set_config ("preferences", "x", sx);
+	f_set_config ("preferences", "y", sy);
+
+	g_free (sx);
+	g_free (sy);
+
 	gtk_main_quit();
 }
 
@@ -197,19 +237,28 @@ f_get_photo_path_from_dialog(void) {
 }
 
 static GdkPixbuf *
-f_get_pixbuf_at_scale(gchar *path, gint scale) {
+f_get_pixbuf_at_scale(gchar *path) {
 	GdkPixbuf *pixbuf;
-	gint width, height;
+	gchar *tmp;
+	gint width, height, max_size;
+
+	tmp = f_get_config ("preferences", "max_size");
+	if (tmp != NULL) {
+		max_size = g_strtod (tmp, NULL);
+		g_free (tmp);
+	} else
+		/* fallback */
+		max_size = 300;
 
 	gdk_pixbuf_get_file_info(path, &width, &height);
 
-	if (width > 300 || height > 300) {
+	if (width > max_size || height > max_size) {
 		if ((width - height) >= 0)
 			pixbuf = gdk_pixbuf_new_from_file_at_scale(path,
-				scale, -1, TRUE, NULL);
+				max_size, -1, TRUE, NULL);
 		else if ((width - height) < 0)
 			pixbuf = gdk_pixbuf_new_from_file_at_scale(path,
-				-1, scale, TRUE, NULL);
+				-1, max_size, TRUE, NULL);
 	} else if (width > 0 && height > 0)
 		pixbuf = gdk_pixbuf_new_from_file(path, NULL);
 	else
@@ -220,30 +269,34 @@ f_get_pixbuf_at_scale(gchar *path, gint scale) {
 static gchar *
 f_get_photo_path(void) {
 	GKeyFile *keyfile = g_key_file_new();
-	gchar *config_path = f_get_config_path();
 	gchar *photo_path = NULL;
 
-	f_print("Config path: %s", config_path);
-
-	if (g_file_test(config_path, G_FILE_TEST_EXISTS)) {
-		if (!g_key_file_load_from_file(keyfile, config_path,
-			G_KEY_FILE_NONE, NULL))
-			f_print("Error: cannot read from file: %s",
-				config_path);
-		else
-			photo_path = g_key_file_get_string(keyfile,
-				"preferences", "photo_path", NULL);
-	} else {
+	if (g_file_test(f_get_config_path (), G_FILE_TEST_EXISTS))
+		photo_path = f_get_config ("preferences", "photo_path");
+	else {
 		photo_path = f_get_photo_path_from_dialog();
 		if (!photo_path) {
 			g_key_file_free(keyfile);
 			return NULL;
 		}
-		f_set_config(config_path, "preferences",
-			"photo_path", photo_path);
+		f_set_config("preferences", "photo_path", photo_path);
 	}
 	g_key_file_free(keyfile);
 	return photo_path;
+}
+
+static gchar *
+f_get_config (gchar *group, gchar *key) {
+	GKeyFile *keyfile = g_key_file_new ();
+	gchar *path = f_get_config_path ();
+	gchar *result = NULL;
+
+	if (!g_key_file_load_from_file (keyfile, path, G_KEY_FILE_NONE, NULL))
+		f_print ("Error: can't read from file: %s", path);
+	else
+		result = g_key_file_get_string (keyfile, group, key, NULL);
+	g_key_file_free (keyfile);
+	return result;
 }
 
 static gchar *
@@ -280,9 +333,10 @@ f_set_window_hints(GtkWindow *window, gboolean new) {
 }
 
 static gboolean
-f_set_config(gchar *path, gchar *group, gchar *key, gchar *content) {
-	GKeyFile *keyfile = g_key_file_new();
+f_set_config(gchar *group, gchar *key, gchar *content) {
 	FILE *fd;
+	GKeyFile *keyfile = g_key_file_new ();
+	gchar *path = f_get_config_path ();
 	gint ret = FALSE;
 
 	g_key_file_load_from_file(keyfile, path, G_KEY_FILE_NONE, NULL);
@@ -303,12 +357,12 @@ static void
 f_set_position(gboolean same) {
 	GtkWindow *window = GTK_WINDOW(f_get_main_window());
 	GKeyFile *keyfile = g_key_file_new();
-	gchar *config_path = f_get_config_path();
+	gchar *path = f_get_config_path();
 
 	if (!same) {
-		if (!g_key_file_load_from_file(keyfile, config_path,
+		if (!g_key_file_load_from_file(keyfile, path,
 			G_KEY_FILE_NONE, NULL)) {
-			f_print("Error: cannot read from file: %s", config_path);
+			f_print("Error: cannot read from file: %s", path);
 		} else {
 			wx = g_key_file_get_integer(keyfile,
 				"preferences", "x", NULL);
