@@ -53,6 +53,7 @@ static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static gint	callback_pref		(GtkWidget *widget, GtkWidget *window);
 static void 	callback_move		(GtkWidget *widget, GdkEventConfigure *event);
 static gchar *	f_get_config		(gchar *group, gchar *key);
+static gint	f_get_config_int	(gchar *group, gchar *key);
 static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
@@ -239,17 +240,11 @@ f_get_photo_path_from_dialog(void) {
 static GdkPixbuf *
 f_get_pixbuf_at_scale(gchar *path) {
 	GdkPixbuf *pixbuf;
-	gchar *tmp;
 	gint width, height, max_size;
 
-	tmp = f_get_config ("preferences", "max_size");
-	if (tmp != NULL) {
-		max_size = g_strtod (tmp, NULL);
-		g_free (tmp);
-	} else
-		/* fallback */
+	max_size = f_get_config_int ("preferences", "max_size");
+	if (max_size == -1)
 		max_size = 300;
-
 	gdk_pixbuf_get_file_info(path, &width, &height);
 
 	if (width > max_size || height > max_size) {
@@ -296,6 +291,19 @@ f_get_config (gchar *group, gchar *key) {
 	else
 		result = g_key_file_get_string (keyfile, group, key, NULL);
 	g_key_file_free (keyfile);
+	return result;
+}
+
+static gint
+f_get_config_int (gchar *group, gchar *key) {
+	gchar *tmp;
+	gint result = -1;
+
+	tmp = f_get_config (group, key);
+	if (tmp != NULL) {
+		result = g_ascii_strtod (tmp, NULL);
+		g_free (tmp);
+	}
 	return result;
 }
 
@@ -357,15 +365,8 @@ static void
 f_set_position(gboolean same) {
 	GtkWindow *window = GTK_WINDOW(f_get_main_window());
 	if (!same) {
-		/* TODO: f_get_config_int() */
-		gchar *sx = f_get_config ("preferences", "x");
-		gchar *sy = f_get_config ("preferences", "y");
-
-		wx = g_ascii_strtod (sx, NULL);
-		wy = g_ascii_strtod (sy, NULL);
-
-		g_free (sx);
-		g_free (sy);
+		wx = f_get_config_int ("preferences", "x");
+		wy = f_get_config_int ("preferences", "y");
 	} else
 		gtk_window_get_position(window, &wx, &wy);
 	gtk_window_move(window, wx, wy);
