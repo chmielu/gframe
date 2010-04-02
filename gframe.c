@@ -61,6 +61,7 @@ static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path);
 static GtkWidget *f_get_main_window	(void);
 static void	f_set_window_hints	(GtkWindow *window, gboolean new);
 static gboolean	f_set_config		(gchar *group, gchar *key, gchar *content);
+static gboolean f_set_config_int	(gchar *group, gchar *key, gint content);
 static void	f_set_position		(gboolean same);
 
 static gint wx, wy;
@@ -165,13 +166,9 @@ callback_pref(GtkWidget *widget, GtkWidget *window) {
 	content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
 	hbox = gtk_hbox_new (TRUE, 0);
 	label = gtk_label_new ("Maximum size:");
-	spin_button = gtk_spin_button_new_with_range (0, 1000, 1);
+	spin_button = gtk_spin_button_new_with_range (0, 3000, 1);
 
-	tmp = f_get_config ("preferences", "max_size");
-	if (tmp != NULL) {
-		max_size = g_strtod (tmp, NULL);
-		g_free (tmp);
-	}
+	max_size = f_get_config_int ("preferences", "max_size");
 	gtk_spin_button_set_value (GTK_SPIN_BUTTON (spin_button), max_size);
 	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
 
@@ -185,10 +182,7 @@ callback_pref(GtkWidget *widget, GtkWidget *window) {
 		case GTK_RESPONSE_OK:
 			max_size = gtk_spin_button_get_value_as_int (
 				GTK_SPIN_BUTTON (spin_button));
-			/* TODO: f_set_config_int () */
-			tmp = g_strdup_printf ("%d", max_size);
-			f_set_config ("preferences", "max_size", tmp);
-			g_free (tmp);
+			f_set_config_int ("preferences", "max_size", max_size);
 			break;
 		default:
 			break;
@@ -208,15 +202,8 @@ static void
 callback_destroy(GtkWidget *widget) {
 	F_UNUSED(widget);
 
-	/* TODO: f_set_config_int () */
-	gchar *sx = g_strdup_printf ("%d", wx);
-	gchar *sy = g_strdup_printf ("%d", wy);
-
-	f_set_config ("preferences", "x", sx);
-	f_set_config ("preferences", "y", sy);
-
-	g_free (sx);
-	g_free (sy);
+	f_set_config_int ("preferences", "x", wx);
+	f_set_config_int ("preferences", "y", wy);
 
 	gtk_main_quit();
 }
@@ -243,7 +230,7 @@ f_get_pixbuf_at_scale(gchar *path) {
 	gint width, height, max_size;
 
 	max_size = f_get_config_int ("preferences", "max_size");
-	if (max_size == -1)
+	if (max_size < 0)
 		max_size = 300;
 	gdk_pixbuf_get_file_info(path, &width, &height);
 
@@ -359,6 +346,16 @@ f_set_config(gchar *group, gchar *key, gchar *content) {
 	}
 	g_key_file_free(keyfile);
 	return ret;
+}
+
+static gboolean
+f_set_config_int (gchar *group, gchar *key, gint content) {
+	gboolean retval;
+	gchar *tmp = g_strdup_printf ("%d", content);
+
+	retval = f_set_config (group, key, tmp);
+	g_free (tmp);
+	return retval;
 }
 
 static void
