@@ -356,19 +356,16 @@ f_set_config(gchar *group, gchar *key, gchar *content) {
 static void
 f_set_position(gboolean same) {
 	GtkWindow *window = GTK_WINDOW(f_get_main_window());
-	GKeyFile *keyfile = g_key_file_new();
-	gchar *path = f_get_config_path();
-
 	if (!same) {
-		if (!g_key_file_load_from_file(keyfile, path,
-			G_KEY_FILE_NONE, NULL)) {
-			f_print("Error: cannot read from file: %s", path);
-		} else {
-			wx = g_key_file_get_integer(keyfile,
-				"preferences", "x", NULL);
-			wy = g_key_file_get_integer(keyfile,
-				"preferences", "y", NULL);
-		}
+		/* TODO: f_get_config_int() */
+		gchar *sx = f_get_config ("preferences", "x");
+		gchar *sy = f_get_config ("preferences", "y");
+
+		wx = g_ascii_strtod (sx, NULL);
+		wy = g_ascii_strtod (sy, NULL);
+
+		g_free (sx);
+		g_free (sy);
 	} else
 		gtk_window_get_position(window, &wx, &wy);
 	gtk_window_move(window, wx, wy);
