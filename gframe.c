@@ -153,7 +153,6 @@ static gint
 callback_pref(GtkWidget *widget, GtkWidget *window) {
 	GtkWidget *dialog, *content_area, *label, *spin_button, *hbox;
 	gint max_size = 0;
-	gchar *tmp = NULL;
 	F_UNUSED (widget);
 
 	dialog = gtk_dialog_new_with_buttons ("Settings",
