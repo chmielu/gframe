@@ -38,9 +38,13 @@
 		gtk_menu_shell_append (GTK_MENU_SHELL (menu), menuitem); \
 		gtk_widget_show (menuitem); \
 	} while (0)
+#define f_menu_append_separator() do { \
+		menuitem = gtk_separator_menu_item_new (); \
+		gtk_menu_shell_append (GTK_MENU_SHELL (menu), menuitem); \
+		gtk_widget_show (menuitem); \
+	} while (0)
 
-/* this is so stupid, but without setting
- * hints to FALSE it way doesn't work :-( */
+/* this is so stupid, but without setting hints to FALSE it doesn't work :-( */
 #define f_window_set_skip_hint(what,widget) do { \
 		gtk_window_set_skip_##what##_hint (GTK_WINDOW (widget), FALSE); \
 		gtk_window_set_skip_##what##_hint (GTK_WINDOW (widget), TRUE); \
@@ -80,10 +84,11 @@ main (int argc, char **argv) {
 	GtkWidget *window = f_get_main_window ();
 	GtkWidget *menu = gtk_menu_new ();
 
-	g_object_unref (pixbuf);
+	gdk_pixbuf_unref (pixbuf);
 
 	f_menu_append_from_stock (GTK_STOCK_PREFERENCES, callback_pref, window);
 	f_menu_append_from_stock (GTK_STOCK_OPEN, callback_open, image);
+	f_menu_append_separator ();
 	f_menu_append_from_stock (GTK_STOCK_QUIT, callback_destroy, NULL);
 
 	gtk_container_set_border_width (GTK_CONTAINER (window), 5);
