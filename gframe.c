@@ -20,7 +20,6 @@
  *
  *	Compile with:
  * 	cc `pkg-config --cflags --libs gtk+-2.0` gframe.c -o gframe
- *
  */
 
 #include <gtk/gtk.h>
@@ -47,21 +46,21 @@
 		gtk_window_set_skip_##what##_hint (GTK_WINDOW (widget), TRUE); \
 	} while (0)
 
+enum { CONFIG_STRING, CONFIG_INT, CONFIG_LAST }; /* f_{set,get}_config type */
+
 static void	callback_destroy	(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static gint	callback_pref		(GtkWidget *widget, GtkWidget *window);
 static void 	callback_move		(GtkWidget *widget, GdkEventConfigure *event);
-static gchar *	f_get_config		(gchar *group, gchar *key);
-static gint	f_get_config_int	(gchar *group, gchar *key);
+static gpointer	f_get_config		(gint type, gchar *group, gchar *key);
 static gchar *	f_get_config_path	(void);
 static gchar *	f_get_photo_path	(void);
 static gchar *	f_get_photo_path_from_dialog (void);
 static GdkPixbuf *f_get_pixbuf_at_scale	(gchar *path);
 static GtkWidget *f_get_main_window	(void);
 static void	f_set_window_hints	(GtkWindow *window, gboolean new);
-static gboolean	f_set_config		(gchar *group, gchar *key, gchar *content);
-static gboolean f_set_config_int	(gchar *group, gchar *key, gint content);
+static gboolean	f_set_config		(gint type, gchar *group, gchar *key, gpointer content);
 static void	f_set_position		(gboolean same);
 
 static gint wx, wy;
@@ -132,7 +131,7 @@ callback_open (GtkWidget *widget, GtkWidget *image) {
 
 	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale (filename);
 	f_print ("File: %s", filename);
-	f_set_config ("preferences", "photo_path", filename);
+	f_set_config (CONFIG_STRING, "preferences", "photo_path", filename);
 
 	gtk_image_set_from_pixbuf (GTK_IMAGE (image), pixbuf);
 	g_object_unref (pixbuf);
@@ -167,7 +166,7 @@ callback_pref (GtkWidget *widget, GtkWidget *window) {
 	label = gtk_label_new ("Maximum size:");
 	spin_button = gtk_spin_button_new_with_range (0, 3000, 1);
 
-	max_size = f_get_config_int ("preferences", "max_size");
+	max_size = (gint)f_get_config (CONFIG_INT, "preferences", "max_size");
 	gtk_spin_button_set_value (GTK_SPIN_BUTTON (spin_button), max_size);
 	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
 
@@ -181,7 +180,7 @@ callback_pref (GtkWidget *widget, GtkWidget *window) {
 		case GTK_RESPONSE_OK:
 			max_size = gtk_spin_button_get_value_as_int (
 				GTK_SPIN_BUTTON (spin_button));
-			f_set_config_int ("preferences", "max_size", max_size);
+			f_set_config (CONFIG_INT, "preferences", "max_size", &max_size);
 			break;
 		default:
 			break;
@@ -201,8 +200,8 @@ static void
 callback_destroy (GtkWidget *widget) {
 	F_UNUSED (widget);
 
-	f_set_config_int ("preferences", "x", wx);
-	f_set_config_int ("preferences", "y", wy);
+	f_set_config (CONFIG_INT, "preferences", "x", &wx);
+	f_set_config (CONFIG_INT, "preferences", "y", &wy);
 
 	gtk_main_quit ();
 }
@@ -228,7 +227,7 @@ f_get_pixbuf_at_scale (gchar *path) {
 	GdkPixbuf *pixbuf;
 	gint width, height, max_size;
 
-	max_size = f_get_config_int ("preferences", "max_size");
+	max_size = (gint)f_get_config (CONFIG_INT, "preferences", "max_size");
 	if (max_size < 0)
 		max_size = 300;
 	gdk_pixbuf_get_file_info (path, &width, &height);
@@ -253,43 +252,39 @@ f_get_photo_path (void) {
 	gchar *photo_path = NULL;
 
 	if (g_file_test (f_get_config_path (), G_FILE_TEST_EXISTS))
-		photo_path = f_get_config ("preferences", "photo_path");
+		photo_path = f_get_config (CONFIG_STRING, "preferences", "photo_path");
 	else {
 		photo_path = f_get_photo_path_from_dialog ();
 		if (!photo_path) {
 			g_key_file_free (keyfile);
 			return NULL;
 		}
-		f_set_config ("preferences", "photo_path", photo_path);
+		f_set_config (CONFIG_STRING, "preferences", "photo_path", photo_path);
 	}
 	g_key_file_free (keyfile);
 	return photo_path;
 }
 
-static gchar *
-f_get_config (gchar *group, gchar *key) {
+static gpointer
+f_get_config (gint type, gchar *group, gchar *key) {
 	GKeyFile *keyfile = g_key_file_new ();
 	gchar *path = f_get_config_path ();
-	gchar *result = NULL;
+	gpointer result = NULL;
 
-	if (!g_key_file_load_from_file (keyfile, path, G_KEY_FILE_NONE, NULL))
+	if (!g_key_file_load_from_file (keyfile, path, G_KEY_FILE_NONE, NULL)) {
 		f_print ("Error: can't read from file: %s", path);
-	else
-		result = g_key_file_get_string (keyfile, group, key, NULL);
-	g_key_file_free (keyfile);
-	return result;
-}
-
-static gint
-f_get_config_int (gchar *group, gchar *key) {
-	gchar *tmp;
-	gint result = -1;
-
-	tmp = f_get_config (group, key);
-	if (tmp != NULL) {
-		result = g_ascii_strtod (tmp, NULL);
-		g_free (tmp);
+		goto err;
 	}
+	switch (type) {
+		case CONFIG_STRING:
+			result = g_key_file_get_string (keyfile, group, key, NULL);
+			break;
+		case CONFIG_INT:
+			result = (gint *)g_key_file_get_integer (keyfile, group, key, NULL);
+			break;
+	}
+err:
+	g_key_file_free (keyfile);
 	return result;
 }
 
@@ -327,14 +322,22 @@ f_set_window_hints (GtkWindow *window, gboolean new) {
 }
 
 static gboolean
-f_set_config (gchar *group, gchar *key, gchar *content) {
+f_set_config (gint type, gchar *group, gchar *key, gpointer content) {
 	FILE *fd;
 	GKeyFile *keyfile = g_key_file_new ();
 	gchar *path = f_get_config_path ();
 	gint ret = FALSE;
 
 	g_key_file_load_from_file (keyfile, path, G_KEY_FILE_NONE, NULL);
-	g_key_file_set_string (keyfile, group, key, content);
+
+	switch (type) {
+		case CONFIG_STRING:
+			g_key_file_set_string (keyfile, group, key, (gchar *)content);
+			break;
+		case CONFIG_INT:
+			g_key_file_set_integer (keyfile, group, key, *((gint *)content));
+			break;
+	}
 
 	if ((fd = fopen (path, "w")) != NULL) {
 		fputs (g_key_file_to_data (keyfile, NULL, NULL), fd);
@@ -347,22 +350,12 @@ f_set_config (gchar *group, gchar *key, gchar *content) {
 	return ret;
 }
 
-static gboolean
-f_set_config_int (gchar *group, gchar *key, gint content) {
-	gboolean retval;
-	gchar *tmp = g_strdup_printf ("%d", content);
-
-	retval = f_set_config (group, key, tmp);
-	g_free (tmp);
-	return retval;
-}
-
 static void
 f_set_position (gboolean same) {
 	GtkWindow *window = GTK_WINDOW (f_get_main_window ());
 	if (!same) {
-		wx = f_get_config_int ("preferences", "x");
-		wy = f_get_config_int ("preferences", "y");
+		wx = (gint)f_get_config (CONFIG_INT, "preferences", "x");
+		wy = (gint)f_get_config (CONFIG_INT, "preferences", "y");
 	} else
 		gtk_window_get_position (window, &wx, &wy);
 	gtk_window_move (window, wx, wy);
