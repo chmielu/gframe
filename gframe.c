@@ -30,8 +30,6 @@
 # define f_print(frm, ...)
 #endif /* DEBUG */
 
-#define F_UNUSED(x) (void)x
-
 #define f_menu_append_from_stock(stock,cb,arg) do { \
 		menuitem = gtk_image_menu_item_new_from_stock (stock, NULL); \
 		g_signal_connect (menuitem, "activate", G_CALLBACK (cb), arg); \
@@ -127,11 +125,10 @@ callback_button (GtkWidget *widget, GdkEvent *event) {
 }
 
 static gint
-callback_open (GtkWidget *widget, GtkWidget *image) {
+callback_open (GtkWidget *widget G_GNUC_UNUSED, GtkWidget *image) {
 	GtkWidget *window = f_get_main_window ();
 	gchar *filename = f_get_photo_path_from_dialog ();
 
-	F_UNUSED (widget);
 	g_return_val_if_fail ((filename != NULL), FALSE);
 
 	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale (filename);
@@ -139,7 +136,7 @@ callback_open (GtkWidget *widget, GtkWidget *image) {
 	f_set_config (CONFIG_STRING, "preferences", "photo_path", filename);
 
 	gtk_image_set_from_pixbuf (GTK_IMAGE (image), pixbuf);
-	g_object_unref (pixbuf);
+	gdk_pixbuf_unref (pixbuf);
 
 	if (window) {
 		gtk_widget_hide_all (window);
@@ -154,10 +151,9 @@ callback_open (GtkWidget *widget, GtkWidget *image) {
 }
 
 static gint
-callback_pref (GtkWidget *widget, GtkWidget *window) {
+callback_pref (GtkWidget *widget G_GNUC_UNUSED, GtkWidget *window) {
 	GtkWidget *dialog, *content_area, *label, *spin_button, *hbox;
 	gint max_size = 0;
-	F_UNUSED (widget);
 
 	dialog = gtk_dialog_new_with_buttons ("Settings",
 		GTK_WINDOW (window),
@@ -195,16 +191,13 @@ callback_pref (GtkWidget *widget, GtkWidget *window) {
 }
 
 static void
-callback_move (GtkWidget *widget, GdkEventConfigure *event) {
-	F_UNUSED (widget);
+callback_move (GtkWidget *widget G_GNUC_UNUSED, GdkEventConfigure *event) {
 	wx = event->x;
 	wy = event->y;
 }
 
 static void
-callback_destroy (GtkWidget *widget) {
-	F_UNUSED (widget);
-
+callback_destroy (GtkWidget *widget G_GNUC_UNUSED) {
 	f_set_config (CONFIG_INT, "preferences", "x", &wx);
 	f_set_config (CONFIG_INT, "preferences", "y", &wy);
 
