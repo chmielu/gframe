@@ -23,6 +23,7 @@
  */
 
 #include <gtk/gtk.h>
+#include <signal.h>
 
 #ifdef DEBUG
 # define f_print(frm, ...) g_print (frm "\n", __VA_ARGS__)
@@ -50,7 +51,7 @@
 
 enum { CONFIG_STRING, CONFIG_INT, CONFIG_LAST }; /* f_{set,get}_config type */
 
-static void	callback_destroy	(GtkWidget *widget);
+static gint	callback_destroy	(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static gint	callback_pref		(GtkWidget *widget, GtkWidget *window);
@@ -71,6 +72,9 @@ int
 main (int argc, char **argv) {
 	GtkWidget *menuitem; /* used by f_menu_append_from_stock () */
 	gchar *path;
+
+	signal(SIGTERM, (__sighandler_t)callback_destroy);
+	signal(SIGINT, (__sighandler_t)callback_destroy);
 
 	gtk_init (&argc, &argv);
 
@@ -196,12 +200,13 @@ callback_move (GtkWidget *widget G_GNUC_UNUSED, GdkEventConfigure *event) {
 	wy = event->y;
 }
 
-static void
+static gint
 callback_destroy (GtkWidget *widget G_GNUC_UNUSED) {
 	f_set_config (CONFIG_INT, "preferences", "x", &wx);
 	f_set_config (CONFIG_INT, "preferences", "y", &wy);
 
 	gtk_main_quit ();
+	return 0;
 }
 
 static gchar *
