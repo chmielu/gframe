@@ -49,6 +49,9 @@
 		gtk_window_set_skip_##what##_hint (GTK_WINDOW (widget), TRUE); \
 	} while (0)
 
+#define f_window_get_image(wid) \
+	gtk_bin_get_child (GTK_BIN (gtk_bin_get_child (GTK_BIN (wid))))
+
 enum { CONFIG_STRING, CONFIG_INT, CONFIG_LAST }; /* f_{set,get}_config type */
 
 static gint	callback_destroy	(GtkWidget *widget);
@@ -65,6 +68,7 @@ static GtkWidget *f_get_main_window	(void);
 static void	f_set_window_hints	(GtkWindow *window, gboolean new);
 static gboolean	f_set_config		(gint type, gchar *group, gchar *key, gpointer content);
 static void	f_set_position		(gboolean same);
+static void	f_window_redraw 	(gchar *filename, GtkWidget *image);
 
 static gint wx, wy;
 
@@ -130,26 +134,13 @@ callback_button (GtkWidget *widget, GdkEvent *event) {
 
 static gint
 callback_open (GtkWidget *widget G_GNUC_UNUSED, GtkWidget *image) {
-	GtkWidget *window = f_get_main_window ();
 	gchar *filename = f_get_photo_path_from_dialog ();
 
 	g_return_val_if_fail ((filename != NULL), FALSE);
 
-	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale (filename);
 	f_print ("File: %s", filename);
 	f_set_config (CONFIG_STRING, "preferences", "photo_path", filename);
-
-	gtk_image_set_from_pixbuf (GTK_IMAGE (image), pixbuf);
-	gdk_pixbuf_unref (pixbuf);
-
-	if (window) {
-		gtk_widget_hide_all (window);
-		gtk_window_resize (GTK_WINDOW (window),
-			gdk_pixbuf_get_width (pixbuf),
-			gdk_pixbuf_get_height (pixbuf));
-		gtk_widget_show_all (window);
-		f_set_window_hints (GTK_WINDOW (window), FALSE);
-	}
+	f_window_redraw (filename, image);
 	f_set_position (TRUE);
 	return TRUE;
 }
@@ -186,6 +177,10 @@ callback_pref (GtkWidget *widget G_GNUC_UNUSED, GtkWidget *window) {
 			max_size = gtk_spin_button_get_value_as_int (
 				GTK_SPIN_BUTTON (spin_button));
 			f_set_config (CONFIG_INT, "preferences", "max_size", &max_size);
+			f_window_redraw(
+				f_get_config (CONFIG_STRING, "preferences", "photo_path"),
+				f_window_get_image (window));
+			f_set_position (TRUE);
 			break;
 		default:
 			break;
@@ -362,4 +357,19 @@ f_set_position (gboolean same) {
 	} else
 		gtk_window_get_position (window, &wx, &wy);
 	gtk_window_move (window, wx, wy);
+}
+
+static void
+f_window_redraw (gchar *filename, GtkWidget *image) {
+	GtkWidget *window = f_get_main_window ();
+
+	GdkPixbuf *pixbuf = f_get_pixbuf_at_scale (filename);
+	gtk_image_set_from_pixbuf (GTK_IMAGE (image), pixbuf);
+	gdk_pixbuf_unref (pixbuf);
+
+	gtk_widget_hide_all (window);
+	gtk_window_resize (GTK_WINDOW (window),
+		gdk_pixbuf_get_width (pixbuf), gdk_pixbuf_get_height (pixbuf));
+	gtk_widget_show_all (window);
+	f_set_window_hints (GTK_WINDOW (window), FALSE);
 }
