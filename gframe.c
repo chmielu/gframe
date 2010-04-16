@@ -292,7 +292,7 @@ f_get_config_path (void) {
 
 	if (path == NULL)
 		path = g_build_filename (g_get_user_config_dir (),
-			"frame.conf", NULL);
+			"gframe.conf", NULL);
 	return path;
 }
 
