@@ -31,6 +31,8 @@
 # define f_print(frm, ...)
 #endif /* DEBUG */
 
+#define VERSION "0.1.1"
+
 #define f_menu_append_from_stock(stock,cb,arg) do { \
 		menuitem = gtk_image_menu_item_new_from_stock (stock, NULL); \
 		g_signal_connect (menuitem, "activate", G_CALLBACK (cb), arg); \
@@ -55,6 +57,7 @@
 enum { CONFIG_STRING, CONFIG_INT, CONFIG_LAST }; /* f_{set,get}_config type */
 
 static gint	callback_destroy	(GtkWidget *widget);
+static gint	callback_about		(GtkWidget *widget);
 static gint	callback_open		(GtkWidget *widget, GtkWidget *image);
 static gint	callback_button		(GtkWidget *widget, GdkEvent *event);
 static gint	callback_pref		(GtkWidget *widget, GtkWidget *window);
@@ -95,6 +98,7 @@ main (int argc, char **argv) {
 	f_menu_append_from_stock (GTK_STOCK_PREFERENCES, callback_pref, window);
 	f_menu_append_from_stock (GTK_STOCK_OPEN, callback_open, image);
 	f_menu_append_separator ();
+	f_menu_append_from_stock (GTK_STOCK_ABOUT, callback_about, window);
 	f_menu_append_from_stock (GTK_STOCK_QUIT, callback_destroy, NULL);
 
 	gtk_container_set_border_width (GTK_CONTAINER (window), 5);
@@ -201,7 +205,19 @@ callback_destroy (GtkWidget *widget G_GNUC_UNUSED) {
 	f_set_config (CONFIG_INT, "preferences", "y", &wy);
 
 	gtk_main_quit ();
-	return 0;
+	return TRUE;
+}
+
+static gint
+callback_about (GtkWidget *widget G_GNUC_UNUSED) {
+	gtk_show_about_dialog (NULL,
+		"program-name", "gframe",
+		"version", VERSION,
+		"comments", "Simple photo frame for your gnome desktop!",
+		"copyright", "© 2010 Robert Chmielowiec",
+		"website", "http://gframe.chmielowiec.net",
+		NULL);
+	return TRUE;
 }
 
 static gchar *
@@ -226,7 +242,7 @@ f_get_pixbuf_at_scale (gchar *path) {
 	gint width, height, max_size;
 
 	max_size = (gint)f_get_config (CONFIG_INT, "preferences", "max_size");
-	if (max_size < 0)
+	if (max_size <= 0)
 		max_size = 300;
 	gdk_pixbuf_get_file_info (path, &width, &height);
 
