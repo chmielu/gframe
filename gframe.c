@@ -31,7 +31,7 @@
 # define f_print(frm, ...)
 #endif /* DEBUG */
 
-#define VERSION "0.1.1"
+#define VERSION "0.1.2"
 
 #define f_menu_append_from_stock(stock,cb,arg) do { \
 		menuitem = gtk_image_menu_item_new_from_stock (stock, NULL); \
@@ -262,20 +262,16 @@ f_get_pixbuf_at_scale (gchar *path) {
 
 static gchar *
 f_get_photo_path (void) {
-	GKeyFile *keyfile = g_key_file_new ();
 	gchar *photo_path = NULL;
 
 	if (g_file_test (f_get_config_path (), G_FILE_TEST_EXISTS))
 		photo_path = f_get_config (CONFIG_STRING, "preferences", "photo_path");
 	else {
 		photo_path = f_get_photo_path_from_dialog ();
-		if (!photo_path) {
-			g_key_file_free (keyfile);
+		if (!photo_path)
 			return NULL;
-		}
 		f_set_config (CONFIG_STRING, "preferences", "photo_path", photo_path);
 	}
-	g_key_file_free (keyfile);
 	return photo_path;
 }
 
