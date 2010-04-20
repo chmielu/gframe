@@ -140,7 +140,8 @@ static gint
 callback_open (GtkWidget *widget G_GNUC_UNUSED, GtkWidget *image) {
 	gchar *filename = f_get_photo_path_from_dialog ();
 
-	g_return_val_if_fail ((filename != NULL), FALSE);
+	if (filename == NULL)
+		return FALSE;
 
 	f_print ("File: %s", filename);
 	f_set_config (CONFIG_STRING, "preferences", "photo_path", filename);
